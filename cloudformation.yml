@@ -63,6 +63,15 @@ Parameters:
     Type: String
     Description: HEC token Firehose will use to authenticate data being sent to Splunk.
 
+  splunkIndex:
+    Type: String
+    Description: Name of the index in Splunk events will be sent to.
+
+  cloudWatchAlertEmail:
+    Type: String
+    Description: Email address for receiving alerts related to CloudTrail ingestion.  Leave empty for no alerting.
+    Default: ""
+
 
 Conditions:
   createNewS3Bucket: !Equals
@@ -71,6 +80,10 @@ Conditions:
   useExistingS3Bucket: !Not
     - !Equals
       - !Ref existingS3BucketName
+      - ""
+  enableAlerting: !Not 
+    - !Equals 
+      - !Ref cloudWatchAlertEmail
       - ""
 
 Resources:
@@ -242,6 +255,165 @@ Resources:
       LogGroupName: !Ref firehoseLogGroup
       LogStreamName: "SplunkDelivery"
 
+# Lambda resources
+  lambdaFunction:
+    Type: AWS::Lambda::Function
+    DependsOn: lambdaLogGroup
+    Properties:
+      Architectures:
+        - arm64
+      Code:
+        ZipFile: |
+          import boto3, gzip, json, os, sys, shutil, re, dateutil.parser, time, csv
+          # Default Lambda handler
+          def handler(event, context):
+            print(event)
+            return true
+      Description: Lambda function for retriving information about DDSS objects, then sending them to Splunk.
+      Environment:
+        Variables:
+          BUCKET_NAME: !If [useExistingS3Bucket, !Sub "${existingS3BucketName}", !Sub "${newS3BucketName}"]
+          FIREHOSE_NAME: !Ref firehose
+          SPLUNK_INDEX: !Ref splunkIndex
+      FunctionName: !If [useExistingS3Bucket, !Sub "${existingS3BucketName}-lambda", !Sub "${newS3BucketName}-lambda"]
+      Handler: lambda.handler
+      MemorySize: 1024
+      Role: !GetAtt lambdaIAMRole.Arn
+      Runtime: python3.9
+      Tags:
+      - Key: service
+        Value: !Ref service
+      - Key: stage
+        Value: !Ref stage
+      - Key: contact
+        Value: !Ref contact
+      Timeout: 300
+
+  lambdaIAMPolicy:
+    Type: AWS::IAM::ManagedPolicy
+    Properties:
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+        - Effect: Allow
+          Action:
+          - s3:GetObject
+          Resource: !If [useExistingS3Bucket, !Sub "arn:aws:s3:::${existingS3BucketName}/*", !Sub "arn:aws:s3:::${newS3BucketName}/*"]
+        - Effect: Allow
+          Action:
+          - firehose:PutRecord
+          - firehose:PutRecordBatch
+          Resource: !GetAtt firehose.Arn
+        - Effect: Allow
+          Action:
+          - logs:CreateLogStream
+          - logs:PutLogEvents
+          Resource: !If [useExistingS3Bucket, !Sub "arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/${existingS3BucketName}-lambda-function", !Sub "arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/${newS3BucketName}-lambda-function"]
+      ManagedPolicyName: !If [useExistingS3Bucket, !Sub "${existingS3BucketName}-lambda-iam-policy", !Sub "${newS3BucketName}-lambda-iam-policy"]
+
+  lambdaIAMRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+        - Effect: "Allow"
+          Principal:
+            Service: "lambda.amazonaws.com"
+          Action:
+            - sts:AssumeRole
+      ManagedPolicyArns:
+        - !Ref lambdaIAMPolicy
+      RoleName: !If [useExistingS3Bucket, !Sub "${existingS3BucketName}-lambda-iam-role", !Sub "${newS3BucketName}-lambda-iam-role"]
+      Tags:
+      - Key: service
+        Value: !Ref service
+      - Key: stage
+        Value: !Ref stage
+      - Key: contact
+        Value: !Ref contact
+
+  lambdaLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !If [useExistingS3Bucket, !Sub "/aws/lambda/${existingS3BucketName}-lambda-function", !Sub "/aws/lambda/${newS3BucketName}-lambda-function"]
+      RetentionInDays: 7
+
+# Monitoring resources
+  # monitoringSNSTopic:
+  #   Condition: enableAlerting
+  #   Type: AWS::SNS::Topic
+  #   Properties:
+  #     DisplayName: !Sub "${AWS::AccountId}-${AWS::Region}-${logType}-alerting-topic"
+  #     TopicName: !Sub "${AWS::AccountId}-${AWS::Region}-${logType}-alerting-topic"
+  #     Subscription:
+  #       - Endpoint: !Ref cloudWatchAlertEmail
+  #         Protocol: email
+
+  # lambdaInvocationAlarm:
+  #   Condition: enableAlerting
+  #   Type: AWS::CloudWatch::Alarm
+  #   Properties:
+  #     ActionsEnabled: True
+  #     AlarmActions: 
+  #       - !Ref monitoringSNSTopic
+  #     AlarmDescription: !Sub "Alarm if lambda function ${AWS::AccountId}-${AWS::Region}-${logType}-lambda-function errors out.  Check CloudWatch Logs to verify the function is running correctly."
+  #     AlarmName: !Sub "${AWS::AccountId}-${AWS::Region}-${logType}-lambda-error-invocations"
+  #     ComparisonOperator: GreaterThanOrEqualToThreshold
+  #     Dimensions:
+  #     - Name: FunctionName
+  #       Value: !Sub "${AWS::AccountId}-${AWS::Region}-${logType}-lambda-function"
+  #     EvaluationPeriods: 1
+  #     MetricName: Errors
+  #     Namespace: AWS/Lambda
+  #     Period: 60
+  #     Statistic: Sum
+  #     Threshold: 1
+  #     Unit: Count
+
+  # lambdaDurationAlarm:
+  #   Condition: enableAlerting
+  #   Type: AWS::CloudWatch::Alarm
+  #   Properties:
+  #     ActionsEnabled: True
+  #     AlarmActions: 
+  #       - !Ref monitoringSNSTopic
+  #     AlarmDescription: !Sub "Alarm if lambda function ${AWS::AccountId}-${AWS::Region}-${logType}-lambda-function runs over 5 minutes.  Consider tuning the lambdaProcessorBatchSize and lambdaProcessorBatchingWindowInSeconds parameters."
+  #     AlarmName: !Sub "${AWS::AccountId}-${AWS::Region}-${logType}-lambda-error-duration"
+  #     ComparisonOperator: GreaterThanOrEqualToThreshold
+  #     Dimensions:
+  #     - Name: FunctionName
+  #       Value: !Sub "${AWS::AccountId}-${AWS::Region}-${logType}-lambda-function"
+  #     EvaluationPeriods: 1
+  #     MetricName: Duration
+  #     Namespace: AWS/Lambda
+  #     Period: 60
+  #     Statistic: Maximum
+  #     Threshold: 300000
+  #     Unit: Milliseconds
+
+  # firehoseDeliveryAlarm:
+  #   Condition: enableAlerting
+  #   Type: AWS::CloudWatch::Alarm
+  #   Properties:
+  #     ActionsEnabled: True
+  #     AlarmActions: 
+  #       - !Ref monitoringSNSTopic
+  #     AlarmDescription: !Sub "Alarm if Firehose ${AWS::AccountId}-${AWS::Region}-${logType}-firehose cannot deliver to Splunk."
+  #     AlarmName: !Sub "${AWS::AccountId}-${AWS::Region}-${logType}-firehose-delivery-alarm"
+  #     ComparisonOperator: LessThanThreshold
+  #     Dimensions:
+  #     - Name: DeliveryStreamName
+  #       Value: !Sub "${AWS::AccountId}-${AWS::Region}-${logType}-firehose"
+  #     EvaluationPeriods: 1
+  #     MetricName: DeliveryToSplunk.Success
+  #     Namespace: AWS/Firehose
+  #     Period: 60
+  #     Statistic: Maximum
+  #     Threshold: 1
+  #     Unit: Count
+
+
 Outputs:
   s3BucketArn:
     Condition: createNewS3Bucket
@@ -254,3 +426,12 @@ Outputs:
     Value: !GetAtt firehoseBacksplashBucket.Arn
   firehoseLogGroupArn:
     Value: !GetAtt firehoseLogGroup.Arn
+  lambdaFunctionArn:
+    Value: !GetAtt lambdaFunction.Arn
+  lambdaIAMRoleArn:
+    Value: !GetAtt lambdaIAMRole.Arn
+  lambdaLogGroupArn:
+    Value: !GetAtt lambdaLogGroup.Arn
+  # monitoringSNSTopicArn:
+  #   Condition: enableAlerting
+  #   Value: !Ref monitoringSNSTopic
