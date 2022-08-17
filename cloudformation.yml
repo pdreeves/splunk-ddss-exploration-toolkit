@@ -19,17 +19,14 @@ Parameters:
     Type: String
     Default: ""
 
-  createNewS3Bucket:
-    Type: String
-    Description: Whether or not an S3 bucket already exists to hold DDSS data.
-    Default: "true"
-    AllowedValues:
-      - true
-      - false
-
   newS3BucketName:
     Type: String
     Description: Name of the existng S3 bucket you want to send DDSS data to.  Leave this blank if the bucket already exists.
+    Default: ""
+
+  existingS3BucketName:
+    Type: String
+    Description: Name of the existng S3 bucket you have DDSS data in.  Leave this blank to create a new S3 bucket.  If you specify the name of an existing S3 bucket, you'll need to create the S3 > SQS notification settings.
     Default: ""
 
   objectExpirationInDays:
@@ -58,11 +55,23 @@ Parameters:
     Description: Principal defined in the AWS S3 bucket policy Splunk generates as part creating the new self storage location.
     Type: String
 
+  splunkHECEndpoint:
+    Type: String
+    Description: Destination URL that Firehose will send data to.
+
+  splunkHECToken:
+    Type: String
+    Description: HEC token Firehose will use to authenticate data being sent to Splunk.
+
 
 Conditions:
   createNewS3Bucket: !Equals
-    - !Ref createNewS3Bucket
-    - "true"
+    - !Ref existingS3BucketName
+    - ""
+  useExistingS3Bucket: !Not
+    - !Equals
+      - !Ref existingS3BucketName
+      - ""
 
 Resources:
 
@@ -127,7 +136,121 @@ Resources:
             AWS: !Ref splunkPrincipal
           Resource: !Sub "arn:aws:s3:::${newS3BucketName}/*"
 
+ # Firehose > Splunk resources
+  firehose:
+    Type: AWS::KinesisFirehose::DeliveryStream
+    Properties: 
+      DeliveryStreamName: !If [useExistingS3Bucket, !Sub "${existingS3BucketName}-firehose", !Sub "${newS3BucketName}-firehose"]
+      DeliveryStreamType: DirectPut
+      SplunkDestinationConfiguration:
+        CloudWatchLoggingOptions:
+          Enabled: true
+          LogGroupName: !Ref firehoseLogGroup
+          LogStreamName: "SplunkDelivery"
+        HECAcknowledgmentTimeoutInSeconds: 300
+        HECEndpoint: !Ref splunkHECEndpoint
+        HECEndpointType: "Event"
+        HECToken: !Ref splunkHECToken
+        RetryOptions:
+          DurationInSeconds: 3600
+        S3BackupMode: "FailedEventsOnly"
+        S3Configuration:
+          BucketARN: !If [useExistingS3Bucket, !Sub "arn:aws:s3:::${existingS3BucketName}-firehose", !Sub "arn:aws:s3:::${newS3BucketName}-firehose-backsplash"]
+          BufferingHints:
+            IntervalInSeconds: 300
+            SizeInMBs: 5
+          CompressionFormat: "UNCOMPRESSED"
+          Prefix: !If [useExistingS3Bucket, !Sub "${existingS3BucketName}-firehose", !Sub "${newS3BucketName}-firehose"]
+          RoleARN: !GetAtt firehoseIAMRole.Arn
+
+  firehoseIAMPolicy:
+    Type: AWS::IAM::ManagedPolicy
+    Properties:
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+        - Effect: Allow
+          Action:
+          - logs:Describe*
+          - logs:PutLogEvents
+          Resource: !GetAtt firehoseLogGroup.Arn
+        - Effect: Allow
+          Action:
+          - s3:PutObject
+          Resource: !If [useExistingS3Bucket, !Sub "arn:aws:s3:::${existingS3BucketName}-firehose-backsplash/*", !Sub "arn:aws:s3:::${newS3BucketName}-firehose-backsplash/*"]
+      ManagedPolicyName: !If [useExistingS3Bucket, !Sub "${existingS3BucketName}-firehose-iam-policy", !Sub "${newS3BucketName}-firehose-iam-policy"]
+
+  firehoseIAMRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+        - Effect: "Allow"
+          Principal:
+            Service: "firehose.amazonaws.com"
+          Action:
+            - sts:AssumeRole
+      ManagedPolicyArns:
+        - !Ref firehoseIAMPolicy
+      RoleName: !If [useExistingS3Bucket, !Sub "${existingS3BucketName}-firehose-iam-role", !Sub "${newS3BucketName}-firehose-iam-role"]
+      Tags:
+      - Key: service
+        Value: !Ref service
+      - Key: stage
+        Value: !Ref stage
+      - Key: contact
+        Value: !Ref contact
+
+  firehoseBacksplashBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !If [useExistingS3Bucket, !Sub "${existingS3BucketName}-firehose-backsplash", !Sub "${newS3BucketName}-firehose-backsplash"]
+      AccessControl: Private
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault:
+              SSEAlgorithm: AES256
+      LifecycleConfiguration:
+        Rules:
+            - Id: !If [useExistingS3Bucket, !Sub "${existingS3BucketName}-firehose-backsplash-cleanup", !Sub "${newS3BucketName}-firehose-backsplash-cleanup"]
+              AbortIncompleteMultipartUpload:
+                DaysAfterInitiation: 1
+              Status: Enabled
+      Tags:
+      - Key: service
+        Value: !Ref service
+      - Key: stage
+        Value: !Ref stage
+      - Key: contact
+        Value: !Ref contact
+
+  firehoseLogGroup: 
+    Type: AWS::Logs::LogGroup
+    Properties: 
+      LogGroupName: !If [useExistingS3Bucket, !Sub "/aws/kinesisfirehose/${existingS3BucketName}-firehose", !Sub "/aws/kinesisfirehose/${newS3BucketName}-firehose"]
+      RetentionInDays: 30
+
+  firehoseLogStream:
+    Type: AWS::Logs::LogStream
+    Properties: 
+      LogGroupName: !Ref firehoseLogGroup
+      LogStreamName: "SplunkDelivery"
+
 Outputs:
   s3BucketArn:
     Condition: createNewS3Bucket
     Value: !GetAtt s3Bucket.Arn
+  firehoseArn:
+    Value: !GetAtt firehose.Arn
+  firehoseIAMRoleArn:
+    Value: !GetAtt firehoseIAMRole.Arn
+  firehoseBacksplashBucketArn:
+    Value: !GetAtt firehoseBacksplashBucket.Arn
+  firehoseLogGroupArn:
+    Value: !GetAtt firehoseLogGroup.Arn
