@@ -1,0 +1,133 @@
+---
+AWSTemplateFormatVersion: 2010-09-09
+Description: This is a CloudFormation template to create an S3 bucket for DDSS storage if it does not already exist, and the necessary AWS resources to query for information about objects in that bucket and send that information to Splunk.
+
+Parameters:
+
+  service:
+    Type: String
+    Description: Service name used in tagging AWS resources.
+    Default: splunk-ddss-exploration-tooklit
+
+  stage:
+    Type: String
+    Description: Used to distinguish between stages of an environment (dev, test, prod, stage, etc).  Only used in AWS resource tagging.
+    Default: dev
+
+  contact:
+    Description: Used to identify a contact for the resources created in this stack.  Only used in AWS resource tagging.  As an example, this could be an email address or username.
+    Type: String
+    Default: ""
+
+  createNewS3Bucket:
+    Type: String
+    Description: Whether or not an S3 bucket already exists to hold DDSS data.
+    Default: "true"
+    AllowedValues:
+      - true
+      - false
+
+  newS3BucketName:
+    Type: String
+    Description: Name of the existng S3 bucket you want to send DDSS data to.  Leave this blank if the bucket already exists.
+    Default: ""
+
+  objectExpirationInDays:
+    Description: How many days to keep the objects in S3 before they're deleted.  This only applies to new buckets and not existing buckets.
+    Default: 365
+    Type: String
+
+  s3TransitionInDays:
+    Description: How many days to keep the objects in S3 Standard before they're moved to another storage class.  The default, 1, will move them ASAP.
+    Default: 1
+    Type: String
+
+  s3TransitionStorageClass:
+    Description: What storage class to move objects to.  Please refer to the AWS documentation (https://aws.amazon.com/s3/storage-classes/) for information on different storage classes.
+    Default: "GLACIER"
+    Type: String
+    AllowedValues:
+      - GLACIER
+      - DEEP_ARCHIVE
+      - GLACIER_IR
+      - INTELLIGENT_TIERING
+      - ONEZONE_IA
+      - STANDARD_IA
+
+  splunkPrincipal:
+    Description: Principal defined in the AWS S3 bucket policy Splunk generates as part creating the new self storage location.
+    Type: String
+
+
+Conditions:
+  createNewS3Bucket: !Equals
+    - !Ref createNewS3Bucket
+    - "true"
+
+Resources:
+
+  # S3 resources
+  s3Bucket:
+    Type: AWS::S3::Bucket
+    Condition: createNewS3Bucket
+    Properties:
+      AccessControl: Private
+      BucketEncryption: 
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault:
+              SSEAlgorithm: AES256
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault:
+              SSEAlgorithm: AES256
+      BucketName: !Ref newS3BucketName
+      LifecycleConfiguration:
+        Rules:
+            - Id: !Sub "${newS3BucketName}-cleanup"
+              AbortIncompleteMultipartUpload:
+                DaysAfterInitiation: 1
+              Status: Enabled
+            - Id: !Sub "${newS3BucketName}-sendToGlacier"
+              Status: Enabled
+              ExpirationInDays: !Ref objectExpirationInDays
+              Prefix: ""
+              Transitions:
+              - TransitionInDays: !Ref s3TransitionInDays
+                StorageClass: !Ref s3TransitionStorageClass
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      Tags:
+      - Key: service
+        Value: !Ref service
+      - Key: stage
+        Value: !Ref stage
+      - Key: contact
+        Value: !Ref contact
+
+  s3BucketPolicy:
+    Type: AWS::S3::BucketPolicy
+    Condition: createNewS3Bucket
+    Properties:
+      Bucket: !Ref s3Bucket
+      PolicyDocument:
+        Statement:
+        - Effect: Allow
+          Action:
+            - s3:ListBucket
+          Principal: 
+            AWS: !Ref splunkPrincipal
+          Resource: !Sub "arn:aws:s3:::${newS3BucketName}"
+        - Effect: Allow
+          Action:
+            - s3:PutObject
+          Principal: 
+            AWS: !Ref splunkPrincipal
+          Resource: !Sub "arn:aws:s3:::${newS3BucketName}/*"
+
+Outputs:
+  s3BucketArn:
+    Condition: createNewS3Bucket
+    Value: !GetAtt s3Bucket.Arn
