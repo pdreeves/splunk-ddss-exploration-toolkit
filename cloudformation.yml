@@ -297,8 +297,8 @@ Resources:
         Statement:
         - Effect: Allow
           Action:
-          - s3:GetObject
-          Resource: !If [useExistingS3Bucket, !Sub "arn:aws:s3:::${existingS3BucketName}/*", !Sub "arn:aws:s3:::${newS3BucketName}/*"]
+          - s3:ListBucket
+          Resource: !If [useExistingS3Bucket, !Sub "arn:aws:s3:::${existingS3BucketName}", !Sub "arn:aws:s3:::${newS3BucketName}"]
         - Effect: Allow
           Action:
           - firehose:PutRecord
