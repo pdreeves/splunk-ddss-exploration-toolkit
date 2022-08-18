@@ -42,7 +42,7 @@ def getBucketInfo(ddssObject):
 
     # Set latest event timestamps in bucket
     returnDict["splunkBucketLatestTimestampEpoch"] = ddssBucketSplit[1]
-    returnDict["splunkBucketLatestTimestampEpoch"] = datetime.datetime.fromtimestamp(int(ddssBucketSplit[1])).isoformat()
+    returnDict["splunkBucketLatestTimestamp"] = datetime.datetime.fromtimestamp(int(ddssBucketSplit[1])).isoformat()
 
     # Set index
     returnDict["splunkBucketIndex"] = ddssObjectSplit[-4]
