@@ -276,7 +276,7 @@ Resources:
           FIREHOSE_NAME: !Ref firehose
           SPLUNK_INDEX: !Ref splunkIndex
       FunctionName: !If [useExistingS3Bucket, !Sub "${existingS3BucketName}-lambda", !Sub "${newS3BucketName}-lambda"]
-      Handler: lambda.handler
+      Handler: index.handler
       MemorySize: 1024
       Role: !GetAtt lambdaIAMRole.Arn
       Runtime: python3.9
