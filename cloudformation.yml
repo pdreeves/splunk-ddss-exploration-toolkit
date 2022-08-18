@@ -339,6 +339,14 @@ Resources:
       LogGroupName: !If [useExistingS3Bucket, !Sub "/aws/lambda/${existingS3BucketName}-lambda-function", !Sub "/aws/lambda/${newS3BucketName}-lambda-function"]
       RetentionInDays: 7
 
+  lambdaResourcePolicy:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Action: lambda:InvokeFunction
+      FunctionName: !Ref lambdaFunction
+      Principal: events.amazonaws.com
+      SourceArn: !GetAtt eventBridgeSchedule.Arn
+      
 # Monitoring resources
   monitoringSNSTopic:
     Condition: enableAlerting
@@ -413,6 +421,16 @@ Resources:
       Threshold: 1
       Unit: Count
 
+  eventBridgeSchedule:
+    Type: AWS::Events::Rule
+    Properties: 
+      Description: !If [useExistingS3Bucket, !Sub "EventBridge rule to invoke ${existingS3BucketName}-lambda", !Sub "EventBridge rule to invoke ${newS3BucketName}-lambda"]
+      Name: !If [useExistingS3Bucket, !Sub "${existingS3BucketName}-eventBridgeRule", !Sub "${newS3BucketName}-eventBridgeRule"]
+      ScheduleExpression: "rate(6 hours)"
+      State: ENABLED
+      Targets: 
+        - Arn: !GetAtt lambdaFunction.Arn
+          Id: !If [useExistingS3Bucket, !Sub "Invoke.${existingS3BucketName}-lambda", !Sub "Invoke.${newS3BucketName}-lambda"]
 
 Outputs:
   s3BucketArn:
@@ -435,3 +453,5 @@ Outputs:
   monitoringSNSTopicArn:
     Condition: enableAlerting
     Value: !Ref monitoringSNSTopic
+  eventBridgeScheduleArn:
+    Value: !GetAtt eventBridgeSchedule.Arn
