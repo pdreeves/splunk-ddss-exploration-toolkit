@@ -11,10 +11,6 @@ s3 = boto3.resource('s3')
 firehoseClient = boto3.client('firehose', region_name=os.environ['AWS_REGION'])
 recordBatch = []
 
-BUCKET_NAME = "ddss-raven-g1i-ze9t4m0xme3z-test2"
-FIREHOSE_NAME = "ddss-raven-g1i-ze9t4m0xme3z-test2-firehose"
-SPLUNK_INDEX = "main"
-
 # Retrieve all Splunk raw data files from the S3 bucket
 def retrieveDDSSObjectList(bucketName):
 
