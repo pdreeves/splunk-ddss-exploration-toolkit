@@ -21,13 +21,18 @@ def retrieveDDSSObjectList(bucketName):
     ddssBucket = s3.Bucket(BUCKET_NAME)
     objectList = []
 
-    # Retrieve all objects, and just filter for ones ending in journal.zst which indicates them as a file containing raw indexed data
-    for object in ddssBucket.objects.all():
-        if (object.key[-11:] == "journal.zst"):
-            objectList.append(str(object.key))
+    try:
+        # Retrieve all objects, and just filter for ones ending in journal.zst which indicates them as a file containing raw indexed data
+        for object in ddssBucket.objects.all():
+            if (object.key[-11:] == "journal.zst"):
+                objectList.append(str(object.key))
 
-    return objectList
+        return objectList
 
+    except:
+        raise TypeError("Unable to retrieve objects from S3 bucket:"  + BUCKET_NAME)
+
+# Parse Splunk bucket events
 def getBucketInfo(ddssObject):
 
     returnDict = {}
@@ -71,11 +76,11 @@ def sendEventsToFirehose(event, final):
         elif (final == True):
             firehoseClient.put_record_batch(DeliveryStreamName=FIREHOSE_NAME, Records=recordBatch)
             recordBatch.clear()
+
     except:
-        return("Unable to send file to Firehose")
+        raise TypeError("Unable to send file to Firehose"  + FIREHOSE_NAME)
 
-    return("Sent to Firehose")
-
+# Main handler
 def handler(event, context):
 
     ddssObjects = retrieveDDSSObjectList(BUCKET_NAME)
@@ -92,4 +97,5 @@ def handler(event, context):
         # Send to Firehose
         sendEventsToFirehose(splunkEvent, False)
 
+    # Send any remaining events to Firehose
     sendEventsToFirehose(splunkEvent, True)
