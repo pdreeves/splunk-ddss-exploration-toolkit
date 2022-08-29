@@ -14,7 +14,11 @@
 		"ds_sXKsZn6H": {
 			"type": "ds.search",
 			"options": {
-				"query": "| rest /services/data/indexes datatype=event | table title"
+				"query": "| rest /services/data/indexes datatype=event | table title",
+				"queryParameters": {
+					"earliest": "-24h@h",
+					"latest": "now"
+				}
 			},
 			"name": "eventIndexList"
 		},
@@ -23,8 +27,8 @@
 			"options": {
 				"query": "index=main sourcetype=\"splunk-ddss-exploration-toolkit\"\n| stats count by splunkBucketIndex\n| fields splunkBucketIndex",
 				"queryParameters": {
-					"earliest": "$global_time.earliest$",
-					"latest": "$global_time.latest$"
+					"earliest": "-24h@h",
+					"latest": "now"
 				}
 			},
 			"name": "frozenIndexSelection"
@@ -34,8 +38,8 @@
 			"options": {
 				"query": "index=$dd_h2u5fyI4$ sourcetype=splunk-ddss-exploration-toolkit splunkBucketIndex=$dd_Hoh6K8aB$\n| dedup splunkBucketPath\n| eval earliestBucketTime = strptime(\"$tr_JaulZ8Sa.earliest$\",\"%Y-%m-%dT%H:%M:%S.%NZ\")\n| eval latestBucketTime = strptime(\"$tr_JaulZ8Sa.latest$\",\"%Y-%m-%dT%H:%M:%S.%NZ\")\n| eval earliestEventTime = if(isnum('earliestEventTime'), 'earliestEventTime', relative_time(now(),\"2022-08-01T00:00:00.000Z\"))\n| eval latestEventTime = if(isnum('latestEventTime'), 'latestEventTime', relative_time(now(),\"2022-08-21T00:00:00.000Z\"))\n| eval currentTime =  relative_time(now(), \"-0\")\n| eval latestEventTime = if(isnull('latestEventTime'), 'currentTime', 'latestEventTime')\n| eval earliestEventTime = if(isnull('earliestEventTime'), 0, 'earliestEventTime')\n| where earliestEventTime<splunkBucketEarliestTimestampEpoch AND earliestEventTime<splunkBucketLatestTimestampEpoch AND latestEventTime>splunkBucketLatestTimestampEpoch\n| table splunkBucketIndex, splunkBucketEarliestTimestamp, splunkBucketLatestTimestamp, s3BucketName, splunkBucketPath\n| sort splunkBucketEarliestTimestamp",
 				"queryParameters": {
-					"earliest": "$global_time.earliest$",
-					"latest": "$global_time.latest$"
+					"earliest": "-24h@h",
+					"latest": "now"
 				}
 			},
 			"name": "listSplunkBuckets"
@@ -54,23 +58,15 @@
 		}
 	},
 	"inputs": {
-		"input_global_trp": {
-			"type": "input.timerange",
-			"options": {
-				"token": "global_time",
-				"defaultValue": "-24h@h,now"
-			},
-			"title": "Time Range: Object In DDSS Storage"
-		},
 		"input_u2QZaoNg": {
 			"options": {
 				"defaultValue": "0,",
 				"token": "tr_JaulZ8Sa"
 			},
-			"title": "Time Range: Splunk Bucket Earliest and Latest Times",
+			"title": "Event Time Range",
 			"type": "input.timerange"
 		},
-		"input_9ZnkGRxN": {
+		"input_YHnOzumN": {
 			"options": {
 				"items": [
 					{
@@ -78,16 +74,18 @@
 						"value": "*"
 					}
 				],
-				"defaultValue": "*",
+				"defaultValue": [
+					"*"
+				],
 				"token": "dd_h2u5fyI4"
 			},
-			"title": "Event Index Selection",
-			"type": "input.dropdown",
+			"title": "DDSS Info Index",
+			"type": "input.multiselect",
 			"dataSources": {
 				"primary": "ds_sXKsZn6H"
 			}
 		},
-		"input_hqK6H6iQ": {
+		"input_Oxt1Ro6n": {
 			"options": {
 				"items": [
 					{
@@ -95,11 +93,13 @@
 						"value": "*"
 					}
 				],
-				"defaultValue": "*",
+				"defaultValue": [
+					"*"
+				],
 				"token": "dd_Hoh6K8aB"
 			},
 			"title": "Frozen Index Selection",
-			"type": "input.dropdown",
+			"type": "input.multiselect",
 			"dataSources": {
 				"primary": "ds_FK3NxSer"
 			}
@@ -121,10 +121,9 @@
 			}
 		],
 		"globalInputs": [
-			"input_9ZnkGRxN",
-			"input_global_trp",
+			"input_YHnOzumN",
 			"input_u2QZaoNg",
-			"input_hqK6H6iQ"
+			"input_Oxt1Ro6n"
 		]
 	},
 	"description": "",
