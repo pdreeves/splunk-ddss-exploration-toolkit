@@ -36,7 +36,7 @@ These instructions are for deploying the necessary AWS resources for Splunk to r
 	- Set the sourcetype to `aws:cloudwatch:guardduty`. 
 	- Select the index you want the data to be sent to.
 	- AWS Kinesis Data Firehose does check the format of the tokens, so we recommend letting Splunk generate this rather than setting it manually through inputs.conf.
-3. Deploy the [cloudformation.yml](https://github.com/pdreeves/splunk-ddss-exploration-toolkit/cloudformatio.yml) template to configure the necessary AWS resources.  You'll need to set the following parameters to settings specific to your Splunk Cloud environment:
+3. Deploy the [cloudformation.yml](https://github.com/pdreeves/splunk-ddss-exploration-toolkit/cloudformatio.yml) template to configure the necessary AWS resources.  This CloudFormation template needs to be deployed into the same AWS region your DDSS bucket is located in, which is the same AWS region your Splunk Cloud stack is in.  You'll need to set the following parameters to settings specific to your Splunk Cloud environment:
 	- existingS3BucketName or `newS3BucketName`: Specifying an `existingS3BucketName` for the DDSS Toolkit to use, or specify a new bucket name in the `newS3BucketName` parameter field.
 	- splunkHECEndpoint:  `https://http-inputs-firehose-{{stackName}}.splunkcloud.com:443`, where `{{stackName}}` is the name of your Splunk Cloud stack.
 	- splunkHECToken: The value of the HEC token from step 2
