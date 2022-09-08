@@ -45,6 +45,11 @@ These instructions are for deploying the necessary AWS resources for Splunk to r
 	- stage: If this is going into production, set this to something like `prod`
 4. Verify that data is being ingested.  The easiest way to do this is wait at least 6 hours, then run a search of `index={{splunkIndex}} sourcetype=splunk-ddss-exploration-toolkit`.
 
+## Dashboard Steps
+
+Step 1:
+(https://github.com/shawnjsplunk/screenshots/blob/55535963de2440d16a85be4b36f184d95c1cdd36/Screen%20Shot%202022-09-02%20at%2012.12.54%20PM.png)
+
 ## FAQ
 - **How can I tune the Lambda function?** There are a few different settings on the `lambdaFcuntion` resource in the CloudFormation template:
 	- `MemorySize`: How much memory to allocate to the Lambda function.  The amount of allocated memory is directly related to how much processing power is allocated to the Lambda function.  This means that the more memory that is allocated (usually) the faster the Lambda function runs.  Raise this value to lower event latency, and/or if the function is timing out.
