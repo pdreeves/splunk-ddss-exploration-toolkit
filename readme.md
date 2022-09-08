@@ -48,7 +48,7 @@ These instructions are for deploying the necessary AWS resources for Splunk to r
 ## Dashboard Steps
 
 Step 1:
-(https://github.com/shawnjsplunk/screenshots/blob/55535963de2440d16a85be4b36f184d95c1cdd36/Screen%20Shot%202022-09-02%20at%2012.12.54%20PM.png)
+[![](https://github.com/shawnjsplunk/screenshots/blob/55535963de2440d16a85be4b36f184d95c1cdd36/Screen%20Shot%202022-09-02%20at%2012.12.54%20PM.png)
 
 ## FAQ
 - **How can I tune the Lambda function?** There are a few different settings on the `lambdaFcuntion` resource in the CloudFormation template:
