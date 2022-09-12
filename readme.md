@@ -1,5 +1,9 @@
 # Splunk DDSS Exploration Toolkit
 
+## DDSS Exploration Toolkit Overview
+
+A key feature in Splunk Cloud is the DDSS feature which enables the usage of an AWS S3 bucket as self managed archive storage. The goal of this ticket is to support the DDSS process by providing visibility into the available archive files  stored within the AWS S3 buckets. Once implemented, the provides a dashboard with filtering capabilities that will all for the idenditification of archive files targeted for restore. 
+ 
 ## Architecture Overview
 
 When Splunk sends data to a DDSS S3 bucket, it copies the raw, compressed indexed data to the S3 bucket.  That data is contained in multiple  `journal.zst` objects (files) in the S3 bucket.  This toolkit will read relevant metadata (object name) from the S3 bucket using a [Lambda function](https://aws.amazon.com/lambda/), construct events in a format Splunk can receive over HEC, then send the object information to Splunk over [HEC](https://docs.splunk.com/Documentation/SplunkCloud/latest/Data/UsetheHTTPEventCollector) via [Kinesis Data Firehose](https://aws.amazon.com/kinesis/data-firehose/).  By default, the Lambda function will retrieve the metadata from the S3 bucket every 6 hours.  The CloudFormation template that's provided can optionally create a new S3 bucket and the relevant S3 bucket permissions, for your Splunk Cloud environment to save DDSS data to, as well as [S3 Lifecycle](https://docs.aws.amazon.com/AmazonS3/latest/userguide/lifecycle-transition-general-considerations.html) rules to send data to another S3 storage tier, such as S3 Glacier.
@@ -47,13 +51,22 @@ These instructions are for deploying the necessary AWS resources for Splunk to r
 
 ## Dashboard Steps
 
-Step 1: 
+Step 1: S3 Bucket Selection
+
+DDSS is capable of supported mutiple AWS S3 buckets as archive storage.  This is especially helpful for organization in a utility or MSP model.  Therefore, the first step in dashboard selection it to select the appropriate buckets for search includion.
+
 ![](https://github.com/shawnjsplunk/screenshots/blob/55535963de2440d16a85be4b36f184d95c1cdd36/ddss1.jpg)
 
-Step 2:
+Step 2: Time Range Selection
+
+This second filter allows for data set selection by time range
+
 ![](https://github.com/shawnjsplunk/screenshots/blob/55535963de2440d16a85be4b36f184d95c1cdd36/ddss2.jpg)
 
 Step 3:
+
+The final filter enables the selection of the indexes with the time range the require restoration.  Once filtering is completed, the results will contain the specific files required to fulfill the restoration request.
+
 ![](https://github.com/shawnjsplunk/screenshots/blob/55535963de2440d16a85be4b36f184d95c1cdd36/Screen%20Shot%202022-09-02%20at%2012.12.54%20PM.png)
 
 ## FAQ
