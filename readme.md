@@ -2,7 +2,7 @@
 
 ## DDSS Exploration Toolkit Overview
 
-A key feature in Splunk Cloud is the DDSS feature which enables the usage of an AWS S3 bucket as self managed archive storage. The goal of this ticket is to support the DDSS process by providing visibility into the available archive files  stored within the AWS S3 buckets. Once implemented, the provides a dashboard with filtering capabilities that will all for the idenditification of archive files targeted for restore. 
+A key feature in Splunk Cloud is[DDSS storage](https://docs.splunk.com/Documentation/SplunkCloud/latest/Admin/DataSelfStorage), which enables the usage of a customer-managed AWS S3 or GCP GCS bucket as self-managed archival storage of data that has aged out of a Splunk Cloud environment. The goal of this toolkit is to support the DDSS restore process by providing visibility into the availability of archived files stored within  AWS S3 buckets. Once implemented, the provided dashboard with filtering capabilities can be used to aide in the identification of files to target for restore. 
  
 ## Architecture Overview
 
@@ -48,25 +48,20 @@ These instructions are for deploying the necessary AWS resources for Splunk to r
 	- stage: If this is going into production, set this to something like `prod`
 4. Verify that data is being ingested.  The easiest way to do this is wait at least 6 hours, then run a search of `index={{splunkIndex}} sourcetype=splunk-ddss-exploration-toolkit`.
 
-## Dashboard Steps
+## Dashboard and Restore Instructions
 
-Step 1: S3 Bucket Selection
+These are instructions on how to use the dashboard.
 
-DDSS is capable of supported mutiple AWS S3 buckets as archive storage.  This is especially helpful for organization in a utility or MSP model.  Therefore, the first step in dashboard selection it to select the appropriate buckets for search includion.
-
+1. Use the "DDSS Info Index" dropdown to select which index has the information about the DDSS files.  This should be the same index that was used in step 2 of the Deployment Instructions.
 ![](https://github.com/shawnjsplunk/screenshots/blob/55535963de2440d16a85be4b36f184d95c1cdd36/ddss1.jpg)
 
-Step 2: Time Range Selection
-
-This second filter allows for data set selection by time range
-
+2. Use the "Event Time Range" dropdown to select the time range of events you are looking for.
 ![](https://github.com/shawnjsplunk/screenshots/blob/55535963de2440d16a85be4b36f184d95c1cdd36/ddss2.jpg)
 
-Step 3:
-
-The final filter enables the selection of the indexes with the time range the require restoration.  Once filtering is completed, the results will contain the specific files required to fulfill the restoration request.
-
+3. Use the "Frozen Index Selection" to select which index/indexes has/have the events you are interested in restoring.
 ![](https://github.com/shawnjsplunk/screenshots/blob/55535963de2440d16a85be4b36f184d95c1cdd36/Screen%20Shot%202022-09-02%20at%2012.12.54%20PM.png)
+
+4. Restore the indexed data following the [Splunk-provided instructions](https://docs.splunk.com/Documentation/SplunkCloud/9.0.2205/Admin/DataSelfStorage#Restore_indexed_data_from_a_self_storage_location).
 
 ## FAQ
 - **How can I tune the Lambda function?** There are a few different settings on the `lambdaFcuntion` resource in the CloudFormation template:
