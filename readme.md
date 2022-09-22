@@ -26,7 +26,6 @@ graph TB;
 	kdf-->|On failure sending to Splunk|s3Backsplash
 ```
 
-
 ## Deployment Instructions
 
 These instructions are for deploying the necessary AWS resources for Splunk to receive information about the DDSS objects in an S3 bucket.  The AWS resources are packaged in a CloudFormation template, and these can be deployed via the normal methods for deploying CloudFormation, such as the CloudFormation console or AWS CLI.
