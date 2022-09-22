@@ -2,7 +2,7 @@
 
 ## DDSS Exploration Toolkit Overview
 
-A key feature in Splunk Cloud is[DDSS storage](https://docs.splunk.com/Documentation/SplunkCloud/latest/Admin/DataSelfStorage), which enables the usage of a customer-managed AWS S3 or GCP GCS bucket as self-managed archival storage of data that has aged out of a Splunk Cloud environment. The goal of this toolkit is to support the DDSS restore process by providing visibility into the availability of archived files stored within  AWS S3 buckets. Once implemented, the provided dashboard with filtering capabilities can be used to aide in the identification of files to target for restore. 
+A key feature in Splunk Cloud is [DDSS storage](https://docs.splunk.com/Documentation/SplunkCloud/latest/Admin/DataSelfStorage), which enables the usage of a customer-managed AWS S3 or GCP GCS bucket as self-managed archival storage of data that has aged out of a Splunk Cloud environment. The goal of this toolkit is to support the DDSS restore process by providing visibility into the availability of archived files stored within  AWS S3 buckets. Once implemented, the provided dashboard with filtering capabilities can be used to aide in the identification of files to target for restore. 
  
 ## Architecture Overview
 
